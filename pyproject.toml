@@ -1,0 +1,9 @@
+[project]
+name = "roar-net-code-fest"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "roar-net-api>=0.1.1",
+]
