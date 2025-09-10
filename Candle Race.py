@@ -125,9 +125,9 @@ class AddMove(SupportsApplyMove[Solution], SupportsLowerBoundIncrement[Solution]
         solution.accumulated_candle_length += get_candle_length(solution.total_travel_time, solution.problem.villages[self.j])
 
     def upper_bound_increment(self, solution):
-        total_travel_time = solution.total_travel_time + solution.problem.travel_times[self.i][self.j],
+        total_travel_time = solution.total_travel_time + solution.problem.travel_times[self.i][self.j]
         delta_accumulated_candle_length = get_candle_length(total_travel_time, solution.problem.villages[self.j])
-        delta_available_candle_length = solution.available_candle_length - get_available_candle_length(total_travel_time, [solution.problem.villages[i] for i in solution.not_visited_villages if i != self.j])
+        delta_available_candle_length = get_available_candle_length(total_travel_time, [solution.problem.villages[i] for i in solution.not_visited_villages if i != self.j]) - solution.available_candle_length
         return delta_accumulated_candle_length + delta_available_candle_length
 
 
@@ -170,13 +170,14 @@ if __name__ == "__main__":
     construction_neighbourhood = problem.construction_neighbourhood()
     moves = construction_neighbourhood.moves(solution)
     init_objective_value = solution.objective_value()
-    init_upper_bound = solution.objective_value()
+    init_upper_bound = solution.upper_bound()
     print(f"init_objective_value: {init_objective_value}")
     print(f"init_upper_bound: {init_upper_bound}\n")
 
     for move in moves:
         print(move)
         s = solution.copy_solution()
+        print(f"move_upper_bound_increment: {move.upper_bound_increment(s)}")
         move.apply_move(s)
         s_objective_value = s.objective_value()
         s_upper_bound = s.upper_bound()
