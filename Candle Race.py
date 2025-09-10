@@ -3,7 +3,7 @@ python "Candle Race".py < candle_race_test.txt
 """
 from typing import final
 from roar_net_api.operations import *
-
+from tabulate import tabulate
 
 
 # ---------------------------------- Problem --------------------------------
@@ -16,7 +16,19 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
         self.villages = villages
         self.num_villages = len(self.villages)
         self.travel_times = calc_travel_times(villages)
-        self.neighbourhood = None
+
+    def __str__(self):
+        table = tabulate(
+            self.travel_times,
+            headers=[f"Village {i}" for i in range(len(self.villages))],
+            showindex=[f"Village {i}" for i in range(len(self.villages))],
+            tablefmt="grid"
+        )
+        return (
+            f"Village Network with {self.num_villages} villages\n"
+            f"Villages: {self.villages}\n"
+            f"Travel Times:\n{table}"
+        )
 
     def empty_solution(self):
         return Solution(self, [], 0, 0, get_available_candle_length())
@@ -129,7 +141,8 @@ if __name__ == "__main__":
     import roar_net_api.algorithms as alg
     import sys
 
-
     problem = Problem.from_textio(sys.stdin)
-    solution = alg.greedy_construction(problem)
-    print(solution.sequence)
+    print(problem)
+
+    #solution = alg.greedy_construction(problem)
+    #print(solution.sequence)
