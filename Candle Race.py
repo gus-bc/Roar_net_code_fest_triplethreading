@@ -31,7 +31,7 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
         )
 
     def empty_solution(self):
-        return Solution(self, [], 0, 0, self.villages.copy())
+        return Solution(self, [0], 0, 0, {i for i in range(1, self.num_villages)})
 
     @classmethod
     def from_textio(cls, f):
@@ -54,9 +54,7 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
         return cls(villages)
     
     def construction_neighbourhood(self):
-        if self.neighbourhood is None:
-            self.neighbourhood = AddNeighbourhood(self)
-        return self.neighbourhood
+        return AddNeighbourhood(self)
 
 # ---------------------------------- Solution --------------------------------
 @final
@@ -64,22 +62,31 @@ class Solution():
     def __init__(self, problem, sequence, total_travel_time, accumulated_candle_length, not_visited_villages):
         self.problem = problem
         self.sequence = sequence
-        self.not_visited_villages = not_visited_villages                                                                                            # A set of village indeces not visited.
+        self.not_visited_villages = not_visited_villages
         self.total_travel_time = total_travel_time
-        self.accumulated_candle_length = accumulated_candle_length                                                                                  # Score
-        self.upper_bound = self.accumulated_candle_length + get_available_candle_length(self.total_travel_time, self.not_visited_villages)          # Is the accumulated_candle_length + the length of the remaining candels not blown out
+        self.accumulated_candle_length = accumulated_candle_length
+        self.ub = self.upper_bound()
         self.available_candle_length = get_available_candle_length(self.total_travel_time, [self.problem.villages[i] for i in self.not_visited_villages])
 
     # Not necessary probably
     def __str__(self):
-        return f""
+        return (f"Sequence: {self.sequence}\n"
+                f"Accumulated_candle_length: {self.accumulated_candle_length}\n"
+                f"Total_travel_time: {self.total_travel_time}\n"
+                f"Not_visited_villages: {self.not_visited_villages}\n")
 
     @property
     def is_feasible(self):
-        return True                                                                                                                                 # Should always be true. The given problem description should allow for sequences of length zero.
-    
+        return True
+
+    def upper_bound(self):
+
+        villages = [self.problem.villages[i] for i in self.not_visited_villages]
+        ub = self.accumulated_candle_length + get_available_candle_length(self.total_travel_time, villages)
+        return ub
+
     def copy_solution(self):
-        return Solution(self.problem, self.sequence.copy(), self.total_travel_time, self.accumulated_candle_length)
+        return Solution(self.problem, self.sequence.copy(), self.total_travel_time, self.accumulated_candle_length, self.not_visited_villages.copy() )
 
     def objective_value(self):
         return self.accumulated_candle_length
@@ -104,8 +111,11 @@ class AddNeighbourhood(SupportsMoves[Solution, "AddMove"]):
 class AddMove(SupportsApplyMove[Solution], SupportsLowerBoundIncrement[Solution]):
     def __init__(self, neighbourhood, i, j):
         self.neighbourhood = neighbourhood
-        self.i = i                                                                      # From village
-        self.j = j                                                                      # To village
+        self.i = i
+        self.j = j
+
+    def __str__(self):
+        return f"AddMove: i={self.i}, j={self.j}"
 
     def apply_move(self, solution):
         solution.sequence.append(self.j)
@@ -116,19 +126,13 @@ class AddMove(SupportsApplyMove[Solution], SupportsLowerBoundIncrement[Solution]
 
     def upper_bound_increment(self, solution):
         total_travel_time = solution.total_travel_time + solution.problem.travel_times[self.i][self.j],
-
         delta_accumulated_candle_length = get_candle_length(total_travel_time, solution.problem.villages[self.j])
-
         delta_available_candle_length = solution.available_candle_length - get_available_candle_length(total_travel_time, [solution.problem.villages[i] for i in solution.not_visited_villages if i != self.j])
-
         return delta_accumulated_candle_length + delta_available_candle_length
 
 
     def lower_bound_increment(self, solution):
         return -self.upper_bound_increment(solution)
-
-        #incr = min(0, solution.problem.villages[self.j][2] - (solution.problem.travel_times[self.i][self.j] + solution.total_travel_time) * solution.problem.villages[self.j][3])
-
 
 
 # ------------------------------- Helpers ------------------------------
@@ -145,15 +149,41 @@ def get_candle_length(travel_time, village):
 
 def get_available_candle_length(travel_time, villages):
     """ Return the sum of the candle lengths of the not_visited_villages"""
-    return sum([get_candle_length(village, travel_time) for village in villages])
+    return sum([get_candle_length(travel_time, village) for village in villages])
 
 
 if __name__ == "__main__":
-    import roar_net_api.algorithms as alg
+    import argparse
     import sys
 
-    problem = Problem.from_textio(sys.stdin)
-    print(problem)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input-file', type=argparse.FileType('r'), default=sys.stdin)
+
+    args = parser.parse_args()
+    filename = args.input_file.name
+    problem = Problem.from_textio(args.input_file)
+
+
+    #print(problem)
+    solution = problem.empty_solution()
+    print(solution)
+    construction_neighbourhood = problem.construction_neighbourhood()
+    moves = construction_neighbourhood.moves(solution)
+    init_objective_value = solution.objective_value()
+    init_upper_bound = solution.objective_value()
+    print(f"init_objective_value: {init_objective_value}")
+    print(f"init_upper_bound: {init_upper_bound}\n")
+
+    for move in moves:
+        print(move)
+        s = solution.copy_solution()
+        move.apply_move(s)
+        s_objective_value = s.objective_value()
+        s_upper_bound = s.upper_bound()
+        print(f"s_objective_value: {s_objective_value}")
+        print(f"s_upper_bound: {s_upper_bound}")
+        print()
+
 
     #solution = alg.greedy_construction(problem)
     #print(solution.sequence)
