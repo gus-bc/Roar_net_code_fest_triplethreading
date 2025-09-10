@@ -6,6 +6,7 @@ from typing import final
 from roar_net_api.algorithms import greedy_construction
 from roar_net_api.operations import *
 from tabulate import tabulate
+from typing import TextIO, final
 
 
 # ---------------------------------- Problem --------------------------------
@@ -85,6 +86,13 @@ class Solution():
                 f"Accumulated_candle_length: {self.accumulated_candle_length}\n"
                 f"Total_travel_time: {self.total_travel_time}\n"
                 f"Not_visited_villages: {self.not_visited_villages}\n")
+
+    def to_textio(self, f: TextIO) -> None:
+        st = ""
+        for s in range(1, len(self.sequence) - 1):
+            st = st + str(self.sequence[s]) + "\n"
+        st = st + str(self.sequence[-1])
+        f.write(st)
 
     @property
     def is_feasible(self):
@@ -178,6 +186,10 @@ if __name__ == "__main__":
 
     solution = greedy_construction(problem)
     print(solution)
+
+    file = open("output.txt", "w")
+    solution.to_textio(file)
+    file.close()
 
     #print(problem)
     # solution = problem.empty_solution()
