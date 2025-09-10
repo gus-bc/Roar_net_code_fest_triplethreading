@@ -1,23 +1,25 @@
 """
 python "Candle Race".py < candle_race_test.txt 
 """
-
-from __future__ import annotations
 from typing import final
 from roar_net_api.operations import *
 
 
 
 # ---------------------------------- Problem --------------------------------
+
+
+
 @final
 class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
     def __init__(self, villages):
         self.villages = villages
-        self.distances = calc_distances(villages)
+        self.num_villages = len(self.villages)
+        self.travel_times = calc_travel_times(villages)
         self.neighbourhood = None
 
     def empty_solution(self):
-        return Solution(self, [], 0, 0)
+        return Solution(self, [], 0, 0, get_available_candle_length())
 
     @classmethod
     def from_textio(cls, f):
@@ -30,7 +32,6 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
             for i in range(num_villages):
                 s = f.readline().strip().split(" ")
                 for j in range(len(s)):
-                    
                     if s[j].isdigit():
                         s[j] = int(s[j])
                     else:
@@ -48,12 +49,14 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
 # ---------------------------------- Solution --------------------------------
 @final
 class Solution():
-    def __init__(self, problem, sequence, total_distance, accumulated_candle_length):
+    def __init__(self, problem, sequence, total_travel_time, accumulated_candle_length, upper_bound, not_visited_villages):
         self.problem = problem
         self.sequence = sequence
-        self.total_distance = total_distance
+        self.not_visited_villages = not_visited_villages        # A set of village indexes not visited
+        self.total_travel_time = total_travel_time
         self.accumulated_candle_length = accumulated_candle_length                      # Score
-    
+        self.upper_bound = upper_bound          # Is the accumulated_candle_length + the length of the remaining candels not blown out
+
     # Not necessary probably
     def __str__(self):
         return f""
@@ -63,7 +66,13 @@ class Solution():
         return True
     
     def copy_solution(self):
-        return Solution(self.problem, self.sequence.copy(), self.total_distance, self.accumulated_candle_length)
+        return Solution(self.problem, self.sequence.copy(), self.total_travel_time, self.accumulated_candle_length, self.upper_bound)
+
+    def objective_value(self):
+        return self.accumulated_candle_length
+
+    def lower_bound(self):
+        return -self.upper_bound
 
 
 # ------------------------------- Neighbourhood ------------------------------
@@ -74,11 +83,8 @@ class AddNeighbourhood(SupportsMoves[Solution, "AddMove"]):
 
     def moves(self, solution):
         assert self.problem == solution.problem
-        l = len(solution.sequence)
-        for i in range(l):
-            i = solution.sequence[i - 1] if i > 0 else 0
-            j = solution.sequence[i]
-            yield AddMove(self, i, j)
+        for i in solution.not_visited_villages:
+            yield AddMove(self, solution.sequence[-1], i)
 
 # ----------------------------------- Moves -----------------------------------
 @final
@@ -91,25 +97,32 @@ class AddMove(SupportsApplyMove[Solution], SupportsLowerBoundIncrement[Solution]
     def apply_move(self, solution):
         solution.sequence.append(self.j)
 
-        prob = solution.problem
-        solution.total_distance += prob.distances[self.i][self.j]
-        solution.accumulated_candle_length += min(0, prob.villages[self.j][2] - solution.total_distance * prob.villages[self.j][3])
+        solution.total_travel_time += solution.problem.travel_times[self.i][self.j]
+        solution.accumulated_candle_length += get_candle_length(solution.total_travel_time, solution.problem.villages[self.j])
 
     def lower_bound_increment(self, solution):
-        prob = solution.problem
+        """ Return accumulated_candle_length after traveling to village + get_available_candle_length()"""
 
-        incr = min(0, prob.villages[self.j][2] - (prob.distances[self.i][self.j] + solution.total_distance) * prob.villages[self.j][3])
+
+        #incr = min(0, solution.problem.villages[self.j][2] - (solution.problem.travel_times[self.i][self.j] + solution.total_travel_time) * solution.problem.villages[self.j][3])
 
 
 
 # ------------------------------- Helpers ------------------------------
-def calc_distances(villages):
+def calc_travel_times(villages):
     """
     input: [[0, 0], [16, 25, 464, 2], [10, 34, 696, 6], [28, 17, 302, 5], [19, 57, 523, 10]]
     output: [[0, 41, 44, 45, 76], [41, 0, 15, 20, 35], [44, 15, 0, 35, 32], [45, 20, 35, 0, 49], [76, 35, 32, 49, 0]]
     """
     l = len(villages)
     return [[abs(villages[i][0] - villages[j][0]) + abs(villages[i][1] - villages[j][1]) for j in range(l)] for i in range(l)]
+
+def get_candle_length(total_travel_time, village):
+    return max(0, (village[2] - village[3]*total_travel_time))
+
+def get_available_candle_length():
+    """ Return the sum of the candle lengths of the not_visited_villages"""
+    NotImplemented
 
 
 if __name__ == "__main__":
