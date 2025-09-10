@@ -1,10 +1,11 @@
+from random import choice, shuffle, random, randrange
 from typing import final
 
 from roar_net_api.operations import *
 
 # ---------------------------------- Problem --------------------------------
 @final
-class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
+class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood, SupportsRandomSolution):
     def __init__(self, villages):
         self.villages = villages
         self.num_villages = len(self.villages)
@@ -24,27 +25,41 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
                 f"Travel Times:\n{self.travel_times}"
             )
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}(villages={(self.villages)})"
+
     def empty_solution(self):
         return Solution(self, [0], 0, 0, {i for i in range(1, self.num_villages)})
+
+    def random_solution(self):
+        sequence = self.villages.copy()
+        shuffle(sequence)
+        total_dist = 0
+        for i in range(0, len(sequence)-1):
+            total_dist += self.travel_times[i][i+1]
+
+        return Solution(self, sequence, 3, 0, {i for i in range(1, self.num_villages)})
 
     @classmethod
     def from_textio(cls, f):
         num_villages = f.readline().strip()
 
         villages = []
-        if num_villages.isdigit():
-            num_villages = int(num_villages)
-
-            for i in range(num_villages):
-                s = f.readline().strip().split(" ")
-                for j in range(len(s)):
-                    if s[j].isdigit():
-                        s[j] = int(s[j])
-                    else:
-                        raise Exception("Invalid instance")
-                villages.append(s)
-        else:
+        try:
+            num_villages = int(num_villages)  # now works for negatives too
+        except ValueError:
             raise Exception("Invalid instance")
+
+        for i in range(num_villages):
+            s = f.readline().strip().split(" ")
+            row = []
+            for val in s:
+                try:
+                    row.append(int(val))  # handles negative and positive integers
+                except ValueError:
+                    raise Exception("Invalid instance")
+            villages.append(row)
+
         return cls(villages)
     
     def construction_neighbourhood(self):
@@ -61,12 +76,29 @@ class Solution(SupportsLowerBoundIncrement, SupportsCopySolution, SupportsObject
         self.accumulated_candle_length = accumulated_candle_length
         self.available_candle_length = get_available_candle_length(self.total_travel_time, [self.problem.villages[i] for i in self.not_visited_villages])
 
-    # Not necessary probably
     def __str__(self):
         return (f"Sequence: {self.sequence}\n"
                 f"Accumulated_candle_length: {self.accumulated_candle_length}\n"
                 f"Total_travel_time: {self.total_travel_time}\n"
                 f"Not_visited_villages: {self.not_visited_villages}\n")
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"problem={repr(self.problem)}, "
+            f"sequence={repr(self.sequence)}, "
+            f"total_travel_time={self.total_travel_time}, "
+            f"accumulated_candle_length={self.accumulated_candle_length}, "
+            f"not_visited_villages={repr(self.not_visited_villages)})"
+        )
+
+    def __eq__(self, other):
+        return (
+            self.sequence == other.sequence and
+            self.total_travel_time == other.total_travel_time and
+            self.accumulated_candle_length == other.accumulated_candle_length and
+            self.not_visited_villages == other.not_visited_villages
+        )
 
     def to_textio(self, f) -> None:
         st = ""
@@ -80,7 +112,6 @@ class Solution(SupportsLowerBoundIncrement, SupportsCopySolution, SupportsObject
         return True
 
     def upper_bound(self):
-
         villages = [self.problem.villages[i] for i in self.not_visited_villages]
         ub = self.accumulated_candle_length + get_available_candle_length(self.total_travel_time, villages)
         return ub
@@ -97,14 +128,31 @@ class Solution(SupportsLowerBoundIncrement, SupportsCopySolution, SupportsObject
 
 # ------------------------------- Neighbourhood ------------------------------
 @final
-class AddNeighbourhood(SupportsMoves):
+class AddNeighbourhood(SupportsMoves, SupportsRandomMove, SupportsRandomMovesWithoutReplacement):
     def __init__(self, problem):
         self.problem = problem
 
-    def moves(self, solution):
+    def __repr__(self):
+        return f"{self.__class__.__name__}(problem={repr(self.problem)})"
 
+    def moves(self, solution):
         for i in solution.not_visited_villages.copy():
-            yield AddMove(self, solution.sequence[-1], i)
+            if get_candle_length(solution.total_travel_time + self.problem.travel_times[solution.sequence[-1]][i], self.problem.villages[i]) > 0:
+                yield AddMove(self, solution.sequence[-1], i)
+
+    def random_move(self, solution) :
+        moves = list(self.moves(solution))  # reuse moves()
+        return choice(moves) if moves else None
+
+    def random_moves_without_replacement(self, solution):
+        moves_gen = self.moves(solution)
+        moves_dict = {}
+        for idx, move in enumerate(moves_gen):
+            moves_dict[idx] = move
+
+        n = len(moves_dict)
+        for i in sparse_fisher_yates_iter(n):
+            yield moves_dict[i]
 
 # ----------------------------------- Moves -----------------------------------
 @final
@@ -117,22 +165,24 @@ class AddMove(SupportsApplyMove, SupportsLowerBoundIncrement):
     def __str__(self):
         return f"AddMove: i={self.i}, j={self.j}"
 
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"neighbourhood={repr(self.neighbourhood)}, "
+            f"i={self.i}, "
+            f"j={self.j})"
+        )
+
     def apply_move(self, solution):
         solution.sequence.append(self.j)
         solution.not_visited_villages.remove(self.j)
-        print(f"old travel_total_time: {solution.total_travel_time}")
-        print(f"travel_time added: {solution.problem.travel_times[self.i][self.j]}")
         solution.total_travel_time += solution.problem.travel_times[self.i][self.j]
-        print(f"new travel_total_time: {solution.total_travel_time}")
-        print(f"Added candle length: {get_candle_length(solution.total_travel_time, solution.problem.villages[self.j])}")
-        print()
         solution.accumulated_candle_length += get_candle_length(solution.total_travel_time, solution.problem.villages[self.j])
 
         solution.available_candle_length = get_available_candle_length(
             solution.total_travel_time,
             [solution.problem.villages[i] for i in solution.not_visited_villages]
         )
-        print(solution.accumulated_candle_length)
         return solution
 
     def upper_bound_increment(self, solution):
@@ -152,6 +202,16 @@ class AddMove(SupportsApplyMove, SupportsLowerBoundIncrement):
 
 
 # ------------------------------- Helpers ------------------------------
+
+def sparse_fisher_yates_iter(n):
+    p = dict()
+    for i in range(n - 1, -1, -1):
+        r = randrange(i + 1)
+        yield p.get(r, r)
+        if i != r:
+            p[r] = p.get(i, i)
+
+
 def calc_travel_times(villages):
     """
     input: [[0, 0], [16, 25, 464, 2], [10, 34, 696, 6], [28, 17, 302, 5], [19, 57, 523, 10]]
@@ -180,7 +240,6 @@ if __name__ == "__main__":
     problem = Problem.from_textio(args.input_file)
 
     solution = greedy_construction(problem)
-    print(solution.objective_value())
 
     file = open("output.txt", "w")
     solution.to_textio(file)
