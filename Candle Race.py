@@ -2,6 +2,8 @@
 python "Candle Race".py < candle_race_test.txt 
 """
 from typing import final
+
+from roar_net_api.algorithms import greedy_construction
 from roar_net_api.operations import *
 from tabulate import tabulate
 
@@ -16,6 +18,15 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
         self.villages = villages
         self.num_villages = len(self.villages)
         self.travel_times = calc_travel_times(villages)
+
+    def __eq__(self, other):
+        if not isinstance(other, Problem):
+            return NotImplemented
+        return (
+                self.villages == other.villages
+                and self.num_villages == other.num_villages
+                and self.travel_times == other.travel_times
+        )
 
     def __str__(self):
         table = tabulate(
@@ -83,6 +94,7 @@ class Solution():
 
         villages = [self.problem.villages[i] for i in self.not_visited_villages]
         ub = self.accumulated_candle_length + get_available_candle_length(self.total_travel_time, villages)
+        self.ub = ub
         return ub
 
     def copy_solution(self):
@@ -92,7 +104,7 @@ class Solution():
         return self.accumulated_candle_length
 
     def lower_bound(self):
-        return -self.upper_bound
+        return -self.ub
 
 
 # ------------------------------- Neighbourhood ------------------------------
@@ -102,7 +114,6 @@ class AddNeighbourhood(SupportsMoves[Solution, "AddMove"]):
         self.problem = problem
 
     def moves(self, solution):
-        assert self.problem == solution.problem
         for i in solution.not_visited_villages:
             yield AddMove(self, solution.sequence[-1], i)
 
@@ -123,6 +134,8 @@ class AddMove(SupportsApplyMove[Solution], SupportsLowerBoundIncrement[Solution]
 
         solution.total_travel_time += solution.problem.travel_times[self.i][self.j]
         solution.accumulated_candle_length += get_candle_length(solution.total_travel_time, solution.problem.villages[self.j])
+
+        return solution
 
     def upper_bound_increment(self, solution):
         total_travel_time = solution.total_travel_time + solution.problem.travel_times[self.i][self.j]
@@ -163,27 +176,30 @@ if __name__ == "__main__":
     filename = args.input_file.name
     problem = Problem.from_textio(args.input_file)
 
+    solution = greedy_construction(problem)
+    print(solution)
 
     #print(problem)
-    solution = problem.empty_solution()
-    print(solution)
-    construction_neighbourhood = problem.construction_neighbourhood()
-    moves = construction_neighbourhood.moves(solution)
-    init_objective_value = solution.objective_value()
-    init_upper_bound = solution.upper_bound()
-    print(f"init_objective_value: {init_objective_value}")
-    print(f"init_upper_bound: {init_upper_bound}\n")
+    # solution = problem.empty_solution()
 
-    for move in moves:
-        print(move)
-        s = solution.copy_solution()
-        print(f"move_upper_bound_increment: {move.upper_bound_increment(s)}")
-        move.apply_move(s)
-        s_objective_value = s.objective_value()
-        s_upper_bound = s.upper_bound()
-        print(f"s_objective_value: {s_objective_value}")
-        print(f"s_upper_bound: {s_upper_bound}")
-        print()
+    # print(solution)
+    # construction_neighbourhood = problem.construction_neighbourhood()
+    # moves = construction_neighbourhood.moves(solution)
+    # init_objective_value = solution.objective_value()
+    # init_upper_bound = solution.upper_bound()
+    # print(f"init_objective_value: {init_objective_value}")
+    # print(f"init_upper_bound: {init_upper_bound}\n")
+    #
+    # for move in moves:
+    #     print(move)
+    #     s = solution.copy_solution()
+    #     print(f"move_upper_bound_increment: {move.upper_bound_increment(s)}")
+    #     move.apply_move(s)
+    #     s_objective_value = s.objective_value()
+    #     s_upper_bound = s.upper_bound()
+    #     print(f"s_objective_value: {s_objective_value}")
+    #     print(f"s_upper_bound: {s_upper_bound}")
+    #     print()
 
 
     #solution = alg.greedy_construction(problem)
