@@ -68,6 +68,7 @@ class Solution():
         self.total_travel_time = total_travel_time
         self.accumulated_candle_length = accumulated_candle_length                      # Score
         self.upper_bound = upper_bound          # Is the accumulated_candle_length + the length of the remaining candels not blown out
+        self.available_candle_length = get_available_candle_length(self.total_travel_time, [self.problem.villages[i] for i in self.not_visited_villages])
 
     # Not necessary probably
     def __str__(self):
@@ -108,13 +109,20 @@ class AddMove(SupportsApplyMove[Solution], SupportsLowerBoundIncrement[Solution]
 
     def apply_move(self, solution):
         solution.sequence.append(self.j)
+        solution.not_visited_villages.remove(self.j)
 
         solution.total_travel_time += solution.problem.travel_times[self.i][self.j]
         solution.accumulated_candle_length += get_candle_length(solution.total_travel_time, solution.problem.villages[self.j])
 
     def upper_bound_increment(self, solution):
-        """ Return accumulated_candle_length after traveling to village + get_available_candle_length()"""
-        return
+        total_travel_time = solution.total_travel_time + solution.problem.travel_times[self.i][self.j],
+
+        delta_accumulated_candle_length = get_candle_length(total_travel_time, solution.problem.villages[self.j])
+
+        delta_available_candle_length = solution.available_candle_length - get_available_candle_length(total_travel_time, [solution.problem.villages[i] for i in solution.not_visited_villages if i != self.j])
+
+        return delta_accumulated_candle_length + delta_available_candle_length
+
 
     def lower_bound_increment(self, solution):
         return -self.upper_bound_increment(solution)
@@ -132,8 +140,8 @@ def calc_travel_times(villages):
     l = len(villages)
     return [[abs(villages[i][0] - villages[j][0]) + abs(villages[i][1] - villages[j][1]) for j in range(l)] for i in range(l)]
 
-def get_candle_length(total_travel_time, village):
-    return max(0, (village[2] - village[3]*total_travel_time))
+def get_candle_length(travel_time, village):
+    return max(0, (village[2] - village[3]*travel_time))
 
 def get_available_candle_length(travel_time, villages):
     """ Return the sum of the candle lengths of the not_visited_villages"""
