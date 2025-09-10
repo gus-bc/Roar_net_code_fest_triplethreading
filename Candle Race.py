@@ -112,9 +112,12 @@ class AddMove(SupportsApplyMove[Solution], SupportsLowerBoundIncrement[Solution]
         solution.total_travel_time += solution.problem.travel_times[self.i][self.j]
         solution.accumulated_candle_length += get_candle_length(solution.total_travel_time, solution.problem.villages[self.j])
 
-    def lower_bound_increment(self, solution):
+    def upper_bound_increment(self, solution):
         """ Return accumulated_candle_length after traveling to village + get_available_candle_length()"""
+        return
 
+    def lower_bound_increment(self, solution):
+        return -self.upper_bound_increment(solution)
 
         #incr = min(0, solution.problem.villages[self.j][2] - (solution.problem.travel_times[self.i][self.j] + solution.total_travel_time) * solution.problem.villages[self.j][3])
 
@@ -132,9 +135,9 @@ def calc_travel_times(villages):
 def get_candle_length(total_travel_time, village):
     return max(0, (village[2] - village[3]*total_travel_time))
 
-def get_available_candle_length():
+def get_available_candle_length(travel_time, villages):
     """ Return the sum of the candle lengths of the not_visited_villages"""
-    NotImplemented
+    return sum([get_candle_length(village, travel_time) for village in villages])
 
 
 if __name__ == "__main__":
