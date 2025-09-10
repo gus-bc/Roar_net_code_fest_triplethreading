@@ -31,7 +31,7 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
         )
 
     def empty_solution(self):
-        return Solution(self, [], 0, 0, get_available_candle_length())
+        return Solution(self, [], 0, 0, self.villages.copy())
 
     @classmethod
     def from_textio(cls, f):
@@ -61,24 +61,20 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood):
 # ---------------------------------- Solution --------------------------------
 @final
 class Solution():
-    def __init__(self, problem, sequence, total_travel_time, accumulated_candle_length, upper_bound, not_visited_villages):
+    def __init__(self, problem, sequence, total_travel_time, accumulated_candle_length, not_visited_villages):
         self.problem = problem
         self.sequence = sequence
-        self.not_visited_villages = not_visited_villages        # A set of village indexes not visited
+        self.not_visited_villages = not_visited_villages                                                                                            # A set of village indeces not visited. 
         self.total_travel_time = total_travel_time
-        self.accumulated_candle_length = accumulated_candle_length                      # Score
-        self.upper_bound = upper_bound          # Is the accumulated_candle_length + the length of the remaining candels not blown out
-
-    # Not necessary probably
-    def __str__(self):
-        return f""
+        self.accumulated_candle_length = accumulated_candle_length                                                                                  # Score
+        self.upper_bound = self.accumulated_candle_length + get_available_candle_length(self.total_travel_time, self.not_visited_villages)          # Is the accumulated_candle_length + the length of the remaining candels not blown out
     
     @property
     def is_feasible(self):
-        return True
+        return True                                                                                                                                 # Should always be true. The given problem description should allow for sequences of length zero.
     
     def copy_solution(self):
-        return Solution(self.problem, self.sequence.copy(), self.total_travel_time, self.accumulated_candle_length, self.upper_bound)
+        return Solution(self.problem, self.sequence.copy(), self.total_travel_time, self.accumulated_candle_length)
 
     def objective_value(self):
         return self.accumulated_candle_length
@@ -103,8 +99,8 @@ class AddNeighbourhood(SupportsMoves[Solution, "AddMove"]):
 class AddMove(SupportsApplyMove[Solution], SupportsLowerBoundIncrement[Solution]):
     def __init__(self, neighbourhood, i, j):
         self.neighbourhood = neighbourhood
-        self.i = i                              # From village
-        self.j = j                              # To village
+        self.i = i                                                                      # From village
+        self.j = j                                                                      # To village
 
     def apply_move(self, solution):
         solution.sequence.append(self.j)
@@ -133,7 +129,7 @@ def calc_travel_times(villages):
     return [[abs(villages[i][0] - villages[j][0]) + abs(villages[i][1] - villages[j][1]) for j in range(l)] for i in range(l)]
 
 def get_candle_length(total_travel_time, village):
-    return max(0, (village[2] - village[3]*total_travel_time))
+    return max(0, (village[2] - village[3] * total_travel_time))
 
 def get_available_candle_length(travel_time, villages):
     """ Return the sum of the candle lengths of the not_visited_villages"""
