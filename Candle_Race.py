@@ -306,7 +306,7 @@ def calc_delta_candle_length(move, solution):
 
 
 def calc_distance(problem, vil1, vil2):
-    return abs(problem.villages[vil1][0] - problem.villages[vil2][0]) + (problem.villages[vil1][1] - problem.villages[vil2][1])
+    return abs(problem.villages[vil1][0] - problem.villages[vil2][0]) + abs(problem.villages[vil1][1] - problem.villages[vil2][1])
 
 def get_candle_length(travel_time, village):
     return max(0, (village[2] - village[3]*travel_time))
@@ -315,14 +315,14 @@ def calc_accumulated_candle_length(sequence, problem):
     accumulated_candle_length = 0
     travel_time = 0
     for idx in range(1,len(sequence)):
-        travel_time += calc_distance(problem.villages[sequence[idx-1]], problem.villages[sequence[idx]])          #problem.travel_times[sequence[idx-1]][sequence[idx]]
+        travel_time += calc_distance(problem, sequence[idx-1], sequence[idx])          #problem.travel_times[sequence[idx-1]][sequence[idx]]
         accumulated_candle_length += get_candle_length(travel_time, problem.villages[sequence[idx]])
     return accumulated_candle_length
 
 def calc_total_travel_time(sequence, problem):
     total_travel_time = 0
     for i in range(0, len(sequence) - 1):
-        total_travel_time += calc_distance(problem, i, i + 1)                                                                                       #problem.travel_times[i][i + 1]
+        total_travel_time += calc_distance(problem, sequence[i], sequence[i + 1])                                                                                       #problem.travel_times[i][i + 1]
     return total_travel_time
 
 
@@ -342,8 +342,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     filename = args.input_file.name
     problem = Problem.from_textio(args.input_file)
-
-
+    
     local_neigbourhood = problem.local_neighbourhood()
     solution = problem.random_solution()
     solution = rls(problem, solution, 1)
