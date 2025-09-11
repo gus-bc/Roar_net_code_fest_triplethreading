@@ -10,20 +10,19 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood, Supports
     def __init__(self, villages):
         self.villages = villages
         self.num_villages = len(self.villages)
-        self.travel_times = calc_travel_times(villages)
 
     def __eq__(self, other):
         return (
                 self.villages == other.villages
                 and self.num_villages == other.num_villages
-                and self.travel_times == other.travel_times
+                #and self.travel_times == other.travel_times
         )
 
     def __str__(self):
         return (
                 f"Village Network with {self.num_villages} villages\n"
-                f"Villages: {self.villages}\n"
-                f"Travel Times:\n{self.travel_times}"
+                f"Villages: {self.villages}"
+                #f"Travel Times:\n{self.travel_times}"
             )
 
     def __repr__(self):
@@ -38,7 +37,7 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood, Supports
         sequence.insert(0, 0)
         total_travel_time = 0
         for i in range(0, len(sequence)-1):
-            total_travel_time += self.travel_times[i][i+1]
+            total_travel_time += calc_distance(self.villages[i], self.villages[i + 1])                       #self.travel_times[i][i+1]
 
         return Solution(self, sequence, total_travel_time, calc_accumulated_candle_length(sequence, self), {})
 
@@ -305,17 +304,9 @@ def calc_delta_candle_length(move, solution):
 
     return calc_accumulated_candle_length(new_seq, solution.problem) - solution.accumulated_candle_length
 
-def calc_travel_times(villages):
-    n = len(villages)
-    dist = [[0] * n for _ in range(n)]
-    for i in range(n):
-        x1, y1 = villages[i][0], villages[i][1]
-        for j in range(i + 1, n):
-            x2, y2 = villages[j][0], villages[j][1]
-            d = abs(x1 - x2) + abs(y1 - y2)
-            dist[i][j] = d
-            dist[j][i] = d
-    return dist
+
+def calc_distance(vil1, vil2):
+    return abs(vil1[0] - vil2[0]) + (vil1[1] - vil2[1])
 
 def get_candle_length(travel_time, village):
     return max(0, (village[2] - village[3]*travel_time))
@@ -324,14 +315,14 @@ def calc_accumulated_candle_length(sequence, problem):
     accumulated_candle_length = 0
     travel_time = 0
     for idx in range(1,len(sequence)):
-        travel_time += problem.travel_times[sequence[idx-1]][sequence[idx]]
+        travel_time += calc_distance(problem.villages[sequence[idx-1]], problem.villages[sequence[idx]])          #problem.travel_times[sequence[idx-1]][sequence[idx]]
         accumulated_candle_length += get_candle_length(travel_time, problem.villages[sequence[idx]])
     return accumulated_candle_length
 
 def calc_total_travel_time(sequence, problem):
     total_travel_time = 0
     for i in range(0, len(sequence) - 1):
-        total_travel_time += problem.travel_times[i][i + 1]
+        total_travel_time += calc_distance(problem.villages[i], problem.villages[i + 1])                                                                                       #problem.travel_times[i][i + 1]
     return total_travel_time
 
 
@@ -343,6 +334,20 @@ if __name__ == "__main__":
     from roar_net_api.algorithms import *
     import argparse
     import sys
+
+
+    
+    """
+    file = open("candle10000.txt", "w")
+    import random
+    n = 10000
+    file.write(str(n) + "\n")
+    file.write("0 0\n")
+    for i in range(n - 1):
+        file.write(str(random.randint(1, 90)) + " " + str(random.randint(1, 90)) + " " + str(random.randint(300, 985)) + " " + str(random.randint(2, 10)) + "\n")
+    file.write(str(random.randint(1, 90)) + " " + str(random.randint(1, 90)) + " " + str(random.randint(300, 985)) + " " + str(random.randint(2, 10)))
+    file.close()
+    """
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--input-file', type=argparse.FileType('r'), default=sys.stdin)
@@ -356,7 +361,7 @@ if __name__ == "__main__":
     solution = problem.random_solution()
     solution = rls(problem, solution, 1)
     print(solution)
-
+    
     # moves = local_neigbourhood.moves(solution)
     # for move in moves:
     #     s = solution.copy_solution()
