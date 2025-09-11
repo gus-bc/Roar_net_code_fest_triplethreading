@@ -37,7 +37,7 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood, Supports
         sequence.insert(0, 0)
         total_travel_time = 0
         for i in range(0, len(sequence)-1):
-            total_travel_time += calc_distance(self.villages[i], self.villages[i + 1])                       #self.travel_times[i][i+1]
+            total_travel_time += calc_distance(self, i, i + 1)
 
         return Solution(self, sequence, total_travel_time, calc_accumulated_candle_length(sequence, self), {})
 
@@ -210,7 +210,7 @@ class AddMove(SupportsApplyMove, SupportsLowerBoundIncrement):
     def apply_move(self, solution):
         solution.sequence.append(self.j)
         solution.not_visited_villages.remove(self.j)
-        solution.total_travel_time += solution.problem.travel_times[self.i][self.j]
+        solution.total_travel_time += calc_distance(solution.problem, self.i, self.j)       #solution.problem.travel_times[self.i][self.j]
         solution.accumulated_candle_length += get_candle_length(solution.total_travel_time, solution.problem.villages[self.j])
 
         solution.available_candle_length = get_available_candle_length(
@@ -220,7 +220,7 @@ class AddMove(SupportsApplyMove, SupportsLowerBoundIncrement):
         return solution
 
     def upper_bound_increment(self, solution):
-        new_total_travel_time = solution.total_travel_time + solution.problem.travel_times[self.i][self.j]
+        new_total_travel_time = solution.total_travel_time + calc_distance(solution.problem, self.i, self.j) #solution.problem.travel_times[self.i][self.j]
 
         delta_accumulated = get_candle_length(new_total_travel_time, solution.problem.villages[self.j])
 
@@ -280,7 +280,7 @@ def sparse_fisher_yates_iter(n):
 
 def calc_delta_travel_time(move, solution):
     seq = solution.sequence
-    tt = solution.problem.travel_times
+    #tt = solution.problem.travel_times
     n = len(seq)
     i, j = move.i, move.j
 
@@ -292,8 +292,8 @@ def calc_delta_travel_time(move, solution):
     old_tt = 0
     new_tt = 0
     for k in range(n - 1):
-        old_tt += tt[seq[k]][seq[k+1]]
-        new_tt += tt[new_seq[k]][new_seq[k+1]]
+        old_tt += calc_distance(solution.problem, seq[k], seq[k + 1]) #tt[seq[k]][seq[k+1]]
+        new_tt += calc_distance(solution.problem, new_seq[k], new_seq[k + 1])#tt[new_seq[k]][new_seq[k+1]]
 
     return new_tt - old_tt
 
@@ -305,8 +305,8 @@ def calc_delta_candle_length(move, solution):
     return calc_accumulated_candle_length(new_seq, solution.problem) - solution.accumulated_candle_length
 
 
-def calc_distance(vil1, vil2):
-    return abs(vil1[0] - vil2[0]) + (vil1[1] - vil2[1])
+def calc_distance(problem, vil1, vil2):
+    return abs(problem.villages[vil1][0] - problem.villages[vil2][0]) + (problem.villages[vil1][1] - problem.villages[vil2][1])
 
 def get_candle_length(travel_time, village):
     return max(0, (village[2] - village[3]*travel_time))
@@ -322,7 +322,7 @@ def calc_accumulated_candle_length(sequence, problem):
 def calc_total_travel_time(sequence, problem):
     total_travel_time = 0
     for i in range(0, len(sequence) - 1):
-        total_travel_time += calc_distance(problem.villages[i], problem.villages[i + 1])                                                                                       #problem.travel_times[i][i + 1]
+        total_travel_time += calc_distance(problem, i, i + 1)                                                                                       #problem.travel_times[i][i + 1]
     return total_travel_time
 
 
@@ -335,19 +335,6 @@ if __name__ == "__main__":
     import argparse
     import sys
 
-
-    
-    """
-    file = open("candle10000.txt", "w")
-    import random
-    n = 10000
-    file.write(str(n) + "\n")
-    file.write("0 0\n")
-    for i in range(n - 1):
-        file.write(str(random.randint(1, 90)) + " " + str(random.randint(1, 90)) + " " + str(random.randint(300, 985)) + " " + str(random.randint(2, 10)) + "\n")
-    file.write(str(random.randint(1, 90)) + " " + str(random.randint(1, 90)) + " " + str(random.randint(300, 985)) + " " + str(random.randint(2, 10)))
-    file.close()
-    """
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--input-file', type=argparse.FileType('r'), default=sys.stdin)
