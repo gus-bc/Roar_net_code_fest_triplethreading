@@ -23,3 +23,5 @@ for i in range(1, len(seq)):
     print(seq[i - 1], seq[i], val)
     total += val
 print(total)
+
+

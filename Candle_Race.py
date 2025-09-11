@@ -3,9 +3,10 @@ from typing import final, Optional, Union
 
 from roar_net_api.operations import *
 
+
 # ---------------------------------- Problem --------------------------------
 @final
-class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood, SupportsRandomSolution):
+class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood, SupportsRandomSolution, SupportsLocalNeighbourhood):
     def __init__(self, villages):
         self.villages = villages
         self.num_villages = len(self.villages)
@@ -32,13 +33,14 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood, Supports
         return Solution(self, [0], 0, 0, {i for i in range(1, self.num_villages)})
 
     def random_solution(self):
-        sequence = self.villages.copy()
+        sequence = [i for i in range(1, len(self.villages))]
         shuffle(sequence)
-        total_dist = 0
+        sequence.insert(0, 0)
+        total_travel_time = 0
         for i in range(0, len(sequence)-1):
-            total_dist += self.travel_times[i][i+1]
+            total_travel_time += self.travel_times[i][i+1]
 
-        return Solution(self, sequence, 3, 0, {i for i in range(1, self.num_villages)})
+        return Solution(self, sequence, total_travel_time, calc_accumulated_candle_length(sequence, self), {})
 
     @classmethod
     def from_textio(cls, f):
@@ -64,6 +66,9 @@ class Problem(SupportsEmptySolution, SupportsConstructionNeighbourhood, Supports
     
     def construction_neighbourhood(self):
         return AddNeighbourhood(self)
+
+    def local_neighbourhood(self):
+        return InsertNeighbourhood(self)
 
 # ---------------------------------- Solution --------------------------------
 @final
@@ -156,33 +161,32 @@ class AddNeighbourhood(SupportsMoves, SupportsRandomMove, SupportsRandomMovesWit
             yield moves_dict[i]
 
 
+class InsertNeighbourhood(SupportsMoves, SupportsRandomMove, SupportsRandomMovesWithoutReplacement):
+    def __init__(self, problem):
+        self.problem = problem
 
-# class SwapNeighbourhood(SupportsMoves, SupportsRandomMove, SupportsRandomMovesWithoutReplacement):
-#     def __init__(self, problem):
-#         self.problem = problem
-#
-#     def __repr__(self):
-#         return f"{self.__class__.__name__}(problem={repr(self.problem)})"
-#
-#     def moves(self, solution):
-#         for i in solution.sequnce[1:]:
-#             for j in solution.sequnce[1:]:
-#                 if i < j:
-#                     yield TwoOptMove(self, solution.sequence[-1], i)
-#
-#     def random_move(self, solution) :
-#         moves = list(self.moves(solution))  # reuse moves()
-#         return choice(moves) if moves else None
-#
-#     def random_moves_without_replacement(self, solution):
-#         moves_gen = self.moves(solution)
-#         moves_dict = {}
-#         for idx, move in enumerate(moves_gen):
-#             moves_dict[idx] = move
-#
-#         n = len(moves_dict)
-#         for i in sparse_fisher_yates_iter(n):
-#             yield moves_dict[i]
+    def __repr__(self):
+        return f"{self.__class__.__name__}(problem={repr(self.problem)})"
+
+    def moves(self, solution):
+        for i in range(1, len(solution.sequence)):
+            for j in range(1, len(solution.sequence)):
+                if i != j and j != 0:
+                    yield InsertMove(self, i, j)
+
+    def random_move(self, solution) :
+        moves = list(self.moves(solution))  # reuse moves()
+        return choice(moves) if moves else None
+
+    def random_moves_without_replacement(self, solution):
+        moves_gen = self.moves(solution)
+        moves_dict = {}
+        for idx, move in enumerate(moves_gen):
+            moves_dict[idx] = move
+
+        n = len(moves_dict)
+        for i in sparse_fisher_yates_iter(n):
+            yield moves_dict[i]
 
 
 # ----------------------------------- Moves -----------------------------------
@@ -236,30 +240,34 @@ class AddMove(SupportsApplyMove, SupportsLowerBoundIncrement):
     def lower_bound_increment(self, solution):
         return -self.upper_bound_increment(solution)
 
-#
-# @final
-# class TwoOptMove(SupportsApplyMove, SupportsObjectiveValueIncrement):
-#     def __init__(self, neighbourhood, i, j):
-#         self.neighbourhood = neighbourhood
-#         self.i = i
-#         self.j = j
-#
-#     def __str__(self):
-#         return f"AddMove: i={self.i}, j={self.j}"
-#
-#     def __repr__(self):
-#         return (
-#             f"{self.__class__.__name__}("
-#             f"neighbourhood={repr(self.neighbourhood)}, "
-#             f"i={self.i}, "
-#             f"j={self.j})"
-#         )
-#
-#     def apply_move(self, solution):
-#         ...
-#
-#     def objective_value_increment(self, solution: Solution):
-#         ...
+
+@final
+class InsertMove(SupportsApplyMove, SupportsObjectiveValueIncrement):
+    def __init__(self, neighbourhood, i, j):
+        self.neighbourhood = neighbourhood
+        self.i = i      # Index of city in solution.sequnce
+        self.j = j      # Index to insert city in solution.sequnce
+
+    def __str__(self):
+        return f"AddMove: i={self.i}, j={self.j}"
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"neighbourhood={repr(self.neighbourhood)}, "
+            f"i={self.i}, "
+            f"j={self.j})"
+        )
+
+    def apply_move(self, solution):
+        solution.total_travel_time += calc_delta_travel_time(self, solution)
+        solution.accumulated_candle_length += calc_delta_candle_length(self, solution)
+        v = solution.sequence.pop(self.i)
+        solution.sequence.insert(self.j, v)
+        return solution
+
+    def objective_value_increment(self, solution: Solution):
+        return calc_delta_candle_length(self, solution)
 
 # ------------------------------- Helpers ------------------------------
 
@@ -271,17 +279,61 @@ def sparse_fisher_yates_iter(n):
         if i != r:
             p[r] = p.get(i, i)
 
+def calc_delta_travel_time(move, solution):
+    seq = solution.sequence
+    tt = solution.problem.travel_times
+    n = len(seq)
+    i, j = move.i, move.j
+
+    v = seq[i]
+
+    new_seq = seq[:i] + seq[i+1:]
+    new_seq = new_seq[:j] + [v] + new_seq[j:]
+
+    old_tt = 0
+    new_tt = 0
+    for k in range(n - 1):
+        old_tt += tt[seq[k]][seq[k+1]]
+        new_tt += tt[new_seq[k]][new_seq[k+1]]
+
+    return new_tt - old_tt
+
+def calc_delta_candle_length(move, solution):
+
+    new_seq = solution.sequence[: move.i] + solution.sequence[ move.i+1:]
+    new_seq = new_seq[: move.j] + [solution.sequence[move.i]] + new_seq[ move.j:]
+
+    return calc_accumulated_candle_length(new_seq, solution.problem) - solution.accumulated_candle_length
 
 def calc_travel_times(villages):
-    """
-    input: [[0, 0], [16, 25, 464, 2], [10, 34, 696, 6], [28, 17, 302, 5], [19, 57, 523, 10]]
-    output: [[0, 41, 44, 45, 76], [41, 0, 15, 20, 35], [44, 15, 0, 35, 32], [45, 20, 35, 0, 49], [76, 35, 32, 49, 0]]
-    """
-    l = len(villages)
-    return [[abs(villages[i][0] - villages[j][0]) + abs(villages[i][1] - villages[j][1]) for j in range(l)] for i in range(l)]
+    n = len(villages)
+    dist = [[0] * n for _ in range(n)]
+    for i in range(n):
+        x1, y1 = villages[i][0], villages[i][1]
+        for j in range(i + 1, n):
+            x2, y2 = villages[j][0], villages[j][1]
+            d = abs(x1 - x2) + abs(y1 - y2)
+            dist[i][j] = d
+            dist[j][i] = d
+    return dist
 
 def get_candle_length(travel_time, village):
     return max(0, (village[2] - village[3]*travel_time))
+
+def calc_accumulated_candle_length(sequence, problem):
+    accumulated_candle_length = 0
+    travel_time = 0
+    for idx in range(1,len(sequence)):
+        travel_time += problem.travel_times[sequence[idx-1]][sequence[idx]]
+        accumulated_candle_length += get_candle_length(travel_time, problem.villages[sequence[idx]])
+    return accumulated_candle_length
+
+def calc_total_travel_time(sequence, problem):
+    total_travel_time = 0
+    for i in range(0, len(sequence) - 1):
+        total_travel_time += problem.travel_times[i][i + 1]
+    return total_travel_time
+
 
 def get_available_candle_length(travel_time, villages):
     """ Return the sum of the candle lengths of the not_visited_villages"""
@@ -299,9 +351,31 @@ if __name__ == "__main__":
     filename = args.input_file.name
     problem = Problem.from_textio(args.input_file)
 
-    solution = greedy_construction(problem)
 
-    file = open("output.txt", "w")
-    solution.to_textio(file)
-    file.close()
+    local_neigbourhood = problem.local_neighbourhood()
+    solution = problem.random_solution()
+    solution = rls(problem, solution, 1)
+    print(solution)
+
+    # moves = local_neigbourhood.moves(solution)
+    # for move in moves:
+    #     s = solution.copy_solution()
+    #     move.apply_move(s)
+    #     print(f"move: {move}")
+    #     print(f"Soltion after move:")
+    #     print(s)
+    #     print()
+
+    # rand_moves_wr = local_neigbourhood.moves(solution)
+    # for move in rand_moves_wr:
+    #     s = solution.copy_solution()
+    #     move.apply_move(s)
+    #     print(f"move: {move}")
+    #     print(f"Soltion after move:")
+    #     print(s)
+    #     print()
+
+    # file = open("output.txt", "w")
+    # solution.to_textio(file)
+    # file.close()
 
