@@ -1,5 +1,5 @@
 from random import choice, shuffle, random, randrange
-from typing import final
+from typing import final, Optional, Union
 
 from roar_net_api.operations import *
 
@@ -113,8 +113,8 @@ class Solution(SupportsLowerBoundIncrement, SupportsCopySolution, SupportsObject
 
     def upper_bound(self):
         villages = [self.problem.villages[i] for i in self.not_visited_villages]
-        ub = self.accumulated_candle_length + get_available_candle_length(self.total_travel_time, villages)
-        return ub
+        remaining = get_available_candle_length(self.total_travel_time, villages)
+        return self.accumulated_candle_length + remaining
 
     def copy_solution(self):
         return Solution(self.problem, self.sequence.copy(), self.total_travel_time, self.accumulated_candle_length, self.not_visited_villages.copy() )
@@ -123,7 +123,7 @@ class Solution(SupportsLowerBoundIncrement, SupportsCopySolution, SupportsObject
         return self.accumulated_candle_length
 
     def lower_bound(self):
-        return - self.upper_bound()
+        return -self.upper_bound()
 
 
 # ------------------------------- Neighbourhood ------------------------------
@@ -137,8 +137,9 @@ class AddNeighbourhood(SupportsMoves, SupportsRandomMove, SupportsRandomMovesWit
 
     def moves(self, solution):
         for i in solution.not_visited_villages.copy():
-            if get_candle_length(solution.total_travel_time + self.problem.travel_times[solution.sequence[-1]][i], self.problem.villages[i]) > 0:
-                yield AddMove(self, solution.sequence[-1], i)
+            # uncomment bellow to not add moves that goes to a city with burnt down candle
+            # if get_candle_length(solution.total_travel_time + self.problem.travel_times[solution.sequence[-1]][i], self.problem.villages[i]) > 0:
+            yield AddMove(self, solution.sequence[-1], i)
 
     def random_move(self, solution) :
         moves = list(self.moves(solution))  # reuse moves()
@@ -153,6 +154,36 @@ class AddNeighbourhood(SupportsMoves, SupportsRandomMove, SupportsRandomMovesWit
         n = len(moves_dict)
         for i in sparse_fisher_yates_iter(n):
             yield moves_dict[i]
+
+
+
+# class SwapNeighbourhood(SupportsMoves, SupportsRandomMove, SupportsRandomMovesWithoutReplacement):
+#     def __init__(self, problem):
+#         self.problem = problem
+#
+#     def __repr__(self):
+#         return f"{self.__class__.__name__}(problem={repr(self.problem)})"
+#
+#     def moves(self, solution):
+#         for i in solution.sequnce[1:]:
+#             for j in solution.sequnce[1:]:
+#                 if i < j:
+#                     yield TwoOptMove(self, solution.sequence[-1], i)
+#
+#     def random_move(self, solution) :
+#         moves = list(self.moves(solution))  # reuse moves()
+#         return choice(moves) if moves else None
+#
+#     def random_moves_without_replacement(self, solution):
+#         moves_gen = self.moves(solution)
+#         moves_dict = {}
+#         for idx, move in enumerate(moves_gen):
+#             moves_dict[idx] = move
+#
+#         n = len(moves_dict)
+#         for i in sparse_fisher_yates_iter(n):
+#             yield moves_dict[i]
+
 
 # ----------------------------------- Moves -----------------------------------
 @final
@@ -186,20 +217,49 @@ class AddMove(SupportsApplyMove, SupportsLowerBoundIncrement):
         return solution
 
     def upper_bound_increment(self, solution):
-        total_travel_time = solution.total_travel_time + solution.problem.travel_times[self.i][self.j]
+        new_total_travel_time = solution.total_travel_time + solution.problem.travel_times[self.i][self.j]
 
-        delta_accumulated_candle_length = get_candle_length(total_travel_time, solution.problem.villages[self.j])
+        delta_accumulated = get_candle_length(new_total_travel_time, solution.problem.villages[self.j])
 
-        villages = [solution.problem.villages[i] for i in solution.not_visited_villages if i != self.j]
+        remaining_villages = [solution.problem.villages[i]
+                              for i in solution.not_visited_villages
+                              if i != self.j]
 
-        delta_available_candle_length = get_available_candle_length(total_travel_time, villages) - solution.available_candle_length
+        new_remaining = get_available_candle_length(new_total_travel_time, remaining_villages)
 
-        return delta_accumulated_candle_length + delta_available_candle_length
+        old_remaining = solution.available_candle_length
+
+        delta_remaining = new_remaining - old_remaining
+        return delta_accumulated + delta_remaining
 
 
     def lower_bound_increment(self, solution):
         return -self.upper_bound_increment(solution)
 
+#
+# @final
+# class TwoOptMove(SupportsApplyMove, SupportsObjectiveValueIncrement):
+#     def __init__(self, neighbourhood, i, j):
+#         self.neighbourhood = neighbourhood
+#         self.i = i
+#         self.j = j
+#
+#     def __str__(self):
+#         return f"AddMove: i={self.i}, j={self.j}"
+#
+#     def __repr__(self):
+#         return (
+#             f"{self.__class__.__name__}("
+#             f"neighbourhood={repr(self.neighbourhood)}, "
+#             f"i={self.i}, "
+#             f"j={self.j})"
+#         )
+#
+#     def apply_move(self, solution):
+#         ...
+#
+#     def objective_value_increment(self, solution: Solution):
+#         ...
 
 # ------------------------------- Helpers ------------------------------
 
